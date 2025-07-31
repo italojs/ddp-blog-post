@@ -2232,31 +2232,31 @@ Meteor.publish('userProfile', function() {
 Observers are expensive components. Meteor reuses observers when queries are identical:
 
 ```javascript
-// Queries idênticas reutilizam o mesmo observer
+// Identical queries reuse the same observer
 Meteor.publish('todos', function() {
   return Todos.find({ userId: this.userId });
 });
 
 Meteor.publish('todos', function() {
-  return Todos.find({ userId: this.userId }); // Mesmo observer
+  return Todos.find({ userId: this.userId }); // Same observer
 });
 ```
 
-### 6.2 Buffering de Mensagens
+### 6.2 Message Buffering
 
-O cliente pode bufferizar mensagens para reduzir overhead de rede:
+The client can buffer messages to reduce network overhead:
 
 ```javascript
 // Buffering configuration
 DDP.connect('ws://localhost:3000', {
-  bufferedWritesInterval: 100, // Buffer por 100ms
-  bufferedWritesMaxAge: 1000   // Máximo 1 segundo
+  bufferedWritesInterval: 100, // Buffer for 100ms
+  bufferedWritesMaxAge: 1000   // Maximum 1 second
 });
 ```
 
-### 6.3 Compensação de Latência
+### 6.3 Latency Compensation
 
-O Meteor implementa compensação de latência para melhor experiência do usuário:
+Meteor implements latency compensation for better user experience:
 
 ```javascript
 // Stub de método no cliente
@@ -2268,9 +2268,9 @@ Meteor.methods({
 });
 ```
 
-## 7. Tratamento de Erros e Reconexão
+## 7. Error Handling and Reconnection
 
-### 7.1 Reconexão Automática
+### 7.1 Automatic Reconnection
 
 The DDP Client automatically reconnects when the connection is lost:
 
@@ -2282,9 +2282,9 @@ DDP.connect('ws://localhost:3000', {
 });
 ```
 
-### 7.2 Recuperação de Estado
+### 7.2 State Recovery
 
-Após reconexão, o cliente recupera seu estado:
+After reconnection, the client recovers its state:
 
 ```javascript
 // Subscription recovery
@@ -2303,12 +2303,12 @@ Methods must validate input arguments:
 Meteor.methods({
   'addTodo': function(text) {
     check(text, String);
-    // ... resto do método
+    // ... rest of method
   }
 });
 ```
 
-### 8.2 Controle de Acesso
+### 8.2 Access Control
 
 Publications must verify permissions:
 
