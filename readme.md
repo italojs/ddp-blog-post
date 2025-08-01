@@ -34,7 +34,7 @@ graph TB
     subgraph "Database"
         MongoDB[(MongoDB)]
         ChangeStreams[Change Streams]
-        Oplog[Oplog Tailing]
+        Oplog[Oplog]
     end
     
     UI --> Tracker
@@ -464,9 +464,9 @@ sequenceDiagram
     UI->>User: Shows new todo instantly
     
     Minimongo->>Connection: Sends method call
-    Connection->>Server: Mensagem DDP method
-    Server->>MongoDB: Insere documento
-    MongoDB->>Server: Confirma inserção
+    Connection->>Server: DDP method message
+    Server->>MongoDB: Inserts document
+    MongoDB->>Server: Confirms insertion
     Server->>Connection: Method result
     Server->>Connection: Updated data via subscription
     Connection->>Minimongo: Reconcile changes
@@ -614,7 +614,7 @@ DDP is Meteor's real-time communication protocol that enables bidirectional comm
 
 ### 2.1 DDP Message Types
 
-#### Mensagens de Subscription:
+#### Subscription Messages:
 - `sub`: Client subscribes to a publication
 - `unsub`: Client cancels subscription
 - `ready`: Server indicates that subscription is ready
@@ -819,7 +819,7 @@ Object.assign(Session.prototype, {
 
 </details>
 
-### 3.2 Publications
+### 3.2 Publications & Subscriptions
 
 **Publications** are functions on the server that **define** which data can be sent to clients. **Subscriptions** are **specific instances** of these publications for each connected client.
 
@@ -886,11 +886,11 @@ sequenceDiagram
     participant Publication
     
     Client->>Session: sub: {name: 'todos', id: 'xyz'}
-    Session->>Server: Busca server.publish_handlers['todos']
-    Server->>Session: Retorna function handler
+    Session->>Server: Finds server.publish_handlers['todos']
+    Server->>Session: Returns function handler
     Session->>Subscription: new Subscription(session, handler, 'xyz')
-    Subscription->>Publication: _runHandler() executa function
-    Publication->>Subscription: Retorna cursor ou usa this.added()
+    Subscription->>Publication: _runHandler() executes function
+    Publication->>Subscription: Returns cursor or uses this.added()
     Subscription->>Client: Sends data via DDP
 ```
 
@@ -900,13 +900,13 @@ sequenceDiagram
 <summary>🔍 See complete Subscription processing implementation</summary>
 
 ```javascript
-// No DDP Server (packages/ddp-server/livedata_server.js)
+// In DDP Server (packages/ddp-server/livedata_server.js)
 
-// 1. REGISTRO da Publication (server startup)
+// 1. REGISTRATION of Publication (server startup)
 // Real Server class structure
 var Server = function (options) {
   var self = this;
-  self.publish_handlers = {};  // ← Objeto que armazena as functions das publications
+  self.publish_handlers = {};  // ← Object that stores the publication functions
   self.universal_publish_handlers = [];
 };
 
@@ -936,7 +936,7 @@ function processSubMessage(msg) {
     handler,        // the publication function
     msg.id,         // unique id of this subscription
     msg.params,     // parameters passed by the client
-    msg.name        // nome da publication
+    msg.name        // publication name
   );
   
   // Each subscription is independent
@@ -1161,7 +1161,7 @@ const sub3 = Meteor.subscribe('userTodos', 'user123'); // Same data as sub1!
 // - 1 Publication Function: 'userTodos'
 // - 3 Subscription Instances: one for each subscribe()
 // - Each Subscription executes the function independently
-// - ObserveMultiplexer otimiza: sub1 e sub3 reutilizam o mesmo Observer!
+// - ObserveMultiplexer optimizes: sub1 and sub3 reuse the same Observer!
 ```
 
 #### Server State:
@@ -1174,9 +1174,9 @@ const sub3 = Meteor.subscribe('userTodos', 'user123'); // Same data as sub1!
 // Structure based on code in packages/ddp-server/livedata_server.js
 
 {
-  // Classe Server (DDPServer)
+  // Server Class (DDPServer)
   server: {
-    publish_handlers: {  // ← Objeto real que armazena as functions
+    publish_handlers: {  // ← Real object that stores the functions
       'userTodos': function(userId) { /* the publication function */ }
     },
     universal_publish_handlers: [],
@@ -1199,7 +1199,7 @@ const sub3 = Meteor.subscribe('userTodos', 'user123'); // Same data as sub1!
   
   // MongoConnection (packages/mongo/mongo_connection.js)
   mongoConnection: {
-    _observeMultiplexers: {  // ← Object real que otimiza queries idênticas
+    _observeMultiplexers: {  // ← Real object that optimizes identical queries
       'todos_{"userId":"user123"}': /* ObserveMultiplexer shared between sub1 and sub3 */,
       'todos_{"userId":"user456"}': /* ObserveMultiplexer exclusive for sub2 */
     }
@@ -1209,7 +1209,7 @@ const sub3 = Meteor.subscribe('userTodos', 'user123'); // Same data as sub1!
 
 </details>
 
-### 3.3 ObserveMultiplexer e ObserveHandle
+### 3.3 ObserveMultiplexer and ObserveHandle
 
 #### Resumo: Publication ≠ Subscription
 
@@ -1277,7 +1277,7 @@ export class ObserveMultiplexer {
     this._cache = new LocalCollection._CachingChangeObserver({ ordered });
     this._addHandleTasksScheduledButNotPerformed = 0;
 
-    // Registra callbacks dinamicamente (added, changed, removed)
+    // Registers callbacks dynamically (added, changed, removed)
     this.callbackNames().forEach(callbackName => {
       (this as any)[callbackName] = (...args: any[]) => {
         this._applyCallback(callbackName, args);
@@ -1308,12 +1308,12 @@ export class ObserveMultiplexer {
     }
   }
 
-  // Método chamado pelos Observers (OplogObserveDriver, ChangeStreamObserveDriver, etc)
+  // Method called by Observers (OplogObserveDriver, ChangeStreamObserveDriver, etc)
   _applyCallback(callbackName: string, args: any[]) {
     this._queue.queueTask(async () => {
       if (!this._handles) return;
 
-      // Atualiza cache interno
+      // Updates internal cache
       await this._cache.applyChange[callbackName].apply(null, args);
       
       if (!this._ready() &&
@@ -1350,8 +1350,8 @@ The ObserveHandle connects a specific subscription to the multiplexer, providing
 ```mermaid
 graph TB
     subgraph "Publication"
-        CursorObserveChanges[cursor.observeChanges()]
-        PublicationCallbacks[sub.added/changed/removed]
+        CursorObserveChanges["cursor.observeChanges()"]
+        PublicationCallbacks["sub.added/changed/removed"]
     end
     
     subgraph "Multiplexer Layer"
@@ -1410,7 +1410,7 @@ const observeKey1 = EJSON.stringify({
   options: {}
 });
 
-// Segunda subscription idêntica - reutiliza o mesmo multiplexer!
+// Second identical subscription - reuses the same multiplexer!
 const observeKey2 = EJSON.stringify({
   ordered: false,
   collectionName: 'todos', 
@@ -1418,11 +1418,11 @@ const observeKey2 = EJSON.stringify({
   options: {}
 });
 
-// observeKey1 === observeKey2, então apenas um Observer é criado
+// observeKey1 === observeKey2, so only one Observer is created
 if (observeKey in self._observeMultiplexers) {
-  multiplexer = self._observeMultiplexers[observeKey]; // Reutiliza!
+  multiplexer = self._observeMultiplexers[observeKey]; // Reuses!
 } else {
-  // Cria novo multiplexer apenas se não existir
+  // Creates new multiplexer only if it doesn't exist
   multiplexer = new ObserveMultiplexer({
     ordered: ordered,
     onStop: function () {
@@ -1750,7 +1750,7 @@ graph TB
     ObserveHandle --> Publication
 ```
 
-#### Fluxo de Processamento do Oplog:
+#### Oplog Processing Flow:
 
 ```mermaid
 sequenceDiagram
@@ -1763,34 +1763,34 @@ sequenceDiagram
     participant Client
     
     App->>MongoDB: Insert/Update/Delete
-    MongoDB->>MongoDB: Escreve no oplog
+    MongoDB->>MongoDB: Writes to oplog
     OplogTail->>MongoDB: Tail oplog cursor
-    MongoDB->>OplogTail: Entrada do oplog
-    OplogTail->>OplogObserver: Processa entrada
-    OplogObserver->>QueryObserver: Verifica se afeta query
-    alt Query afetada
+    MongoDB->>OplogTail: Oplog entry
+    OplogTail->>OplogObserver: Processes entry
+    OplogObserver->>QueryObserver: Checks if affects query
+    alt Query affected
         QueryObserver->>ObserveMultiplexer: multiplexer.added/changed/removed()
-        ObserveMultiplexer->>ObserveHandle: Distribui para handles
-        ObserveHandle->>Publication: Dispara callbacks (added/changed/removed)
-        Publication->>Client: Envia atualização DDP
+        ObserveMultiplexer->>ObserveHandle: Distributes to handles
+        ObserveHandle->>Publication: Triggers callbacks (added/changed/removed)
+        Publication->>Client: Sends DDP update
     end
 ```
 
-#### Processamento de Entrada do Oplog:
+#### Oplog Entry Processing:
 
 <details>
-<summary>🔍 Ver exemplo completo de entrada do oplog</summary>
+<summary>🔍 See complete oplog entry example</summary>
 
 ```javascript
-// Exemplo de entrada do oplog para um insert
+// Example of oplog entry for an insert
 {
   "ts": ...,           // Timestamp
   "t": ...,            // Term
   "h": ...,            // Hash
   "v": 2,              // Version
-  "op": "i",           // Tipo de operação (i=insert, u=update, d=delete)
+  "op": "i",           // Operation type (i=insert, u=update, d=delete)
   "ns": "myapp.todos", // Namespace (database.collection)
-  "o": {               // Documento da operação
+  "o": {               // Operation document
     "_id": ObjectId("..."),
     "text": "New todo",
     "done": false
@@ -1861,7 +1861,7 @@ graph TB
         DocumentCache[Document Cache]
     end
     
-    subgraph "Conexões"
+    subgraph "Connections"
         Connection1[Connection 1]
         Connection2[Connection 2]
         ConnectionN[Connection N]
@@ -2023,11 +2023,11 @@ export class SessionCollectionView {
 
 </details>
 
-### 3.6 Methods (Métodos)
+### 3.6 Methods
 
 Methods are remote functions that clients can invoke. They are the main mechanism for writing data.
 
-#### Ciclo de Vida do Método:
+#### Method Lifecycle:
 
 ```mermaid
 sequenceDiagram
@@ -2039,17 +2039,17 @@ sequenceDiagram
     
     Client->>Connection: Meteor.call('addTodo', ...)
     Connection->>Server: method: {name: 'addTodo', params: [...]}
-    Server->>Method: Executa método
-    Method->>MongoDB: Operação no banco
-    MongoDB->>Method: Confirma operação
-    Method->>Server: Retorna resultado
+    Server->>Method: Executes method
+    Method->>MongoDB: Database operation
+    MongoDB->>Method: Confirms operation
+    Method->>Server: Returns result
     Server->>Connection: result: {id: 'methodId', result: ...}
-    Connection->>Client: Método completado
+    Connection->>Client: Method completed
     
-    Note over MongoDB: Mudanças no banco disparam observers
-    MongoDB->>Observer: Notificação de mudança
+    Note over MongoDB: Database changes trigger observers
+    MongoDB->>Observer: Change notification
     Observer->>ObserveMultiplexer: multiplexer.added/changed/removed()
-    ObserveMultiplexer->>ObserveHandle: Distribui para handles
+    ObserveMultiplexer->>ObserveHandle: Distributes to handles
     ObserveHandle->>Publication: Callback (added/changed/removed)
     Publication->>Server: DDP update
     Server->>Connection: updated: {methods: ['methodId']}
@@ -2141,28 +2141,28 @@ sequenceDiagram
     Connection->>ReactComponent: Method completed
     
     Note over User, Mergebox: 4. Real-time Update via Publication
-    MongoDB->>ChangeStream: Evento de mudança gerado
-    ChangeStream->>QueryObserver: Notificação de novo documento
-    QueryObserver->>QueryObserver: Verifica se documento corresponde à query
+    MongoDB->>ChangeStream: Change event generated
+    ChangeStream->>QueryObserver: New document notification
+    QueryObserver->>QueryObserver: Checks if document matches query
     QueryObserver->>ObserveMultiplexer: multiplexer.added()
-    ObserveMultiplexer->>ObserveHandle: Distribui para handle
-    ObserveHandle->>Publication: Chama this.added()
-    Publication->>Mergebox: Atualiza cache de documento do cliente
-    Mergebox->>Server: Determina o que enviar
-    Server->>WebSocket: Mensagem DDP added
-    WebSocket->>Connection: Encaminha mensagem
+    ObserveMultiplexer->>ObserveHandle: Distributes to handle
+    ObserveHandle->>Publication: Calls this.added()
+    Publication->>Mergebox: Updates client document cache
+    Mergebox->>Server: Determines what to send
+    Server->>WebSocket: DDP added message
+    WebSocket->>Connection: Forwards message
     Connection->>Minimongo: Merges server data
-    Minimongo->>Tracker: Invalida se dados mudaram
-    Tracker->>ReactComponent: Re-executa se necessário
+    Minimongo->>Tracker: Invalidates if data changed
+    Tracker->>ReactComponent: Re-executes if necessary
 ```
 
-### 4.2 Processamento de Mensagens no Cliente
+### 4.2 Client Message Processing
 
 <details>
-<summary>🔍 Ver exemplo completo de processamento de mensagens DDP</summary>
+<summary>🔍 See complete DDP message processing example</summary>
 
 ```javascript
-// Exemplo de processamento de mensagens no cliente
+// Example of client-side message processing
 async function processDataMessage(msg) {
   const messageType = msg.msg;
 
@@ -2216,7 +2216,7 @@ Meteor.publish('notifications', function() {
 
 ### 5.3 NO_MERGE
 
-Similar ao NO_MERGE_NO_HISTORY mas o servidor lembra os IDs enviados:
+Similar to NO_MERGE_NO_HISTORY but the server remembers the sent IDs:
 
 ```javascript
 // For collections used in a single publication
@@ -2259,7 +2259,7 @@ DDP.connect('ws://localhost:3000', {
 Meteor implements latency compensation for better user experience:
 
 ```javascript
-// Stub de método no cliente
+// Method stub on client
 Meteor.methods({
   'addTodo': function(text) {
     // Executes immediately on client
@@ -2321,17 +2321,17 @@ Meteor.publish('todos', function() {
 });
 ```
 
-## 9. Debugging e Monitoramento Avançado
+## 9. Advanced Debugging and Monitoring
 
 ### 9.1 Logs DDP
 
 Enable DDP logs for debugging:
 
 ```javascript
-// No cliente
+// On client
 Meteor._debug = true;
 
-// No servidor
+// On server
 Meteor._debug = true;
 ```
 
@@ -2358,7 +2358,7 @@ console.log('Active connections:', DDPServer._allConnections.size);
 function inspectMeteorState() {
   console.log('=== Meteor State Inspection ===');
   
-  // Conexões
+  // Connections
   console.log('Active connections:', DDPServer.sessions.size);
   
   // Publications
